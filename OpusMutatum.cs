@@ -20,8 +20,7 @@ namespace OpusMutatum {
 		static string PathToMonoMod = "./MonoMod.exe";
 
 		// for strings
-		static string MainMethodName = "#=qbZYLMl8F9alVNlRAO03dOw==.#=qAqM7sFzcD4RfaoNvmBH0bw==";
-		static string StringDeobfName = "#=q7nvcBd_hWOx6ogq743lZkyDITddtOR9ugDU9NV1hD8Y=.#=qb3HWBkVlFVubfVOAwuy8rw==";
+		static string StringDeobfName = null;
 		static string StringDeobfIntermediaryName = "method_131";
 
 		static List<string> MappingPaths = new List<string>();
@@ -90,8 +89,6 @@ namespace OpusMutatum {
 							current = ArgumentParsingMode.LightningPath;
 						else if(arg.Equals("--monomod"))
 							current = ArgumentParsingMode.MonoModPath;
-						else if(arg.Equals("--mainmethodname"))
-							current = ArgumentParsingMode.MainMethodName;
 						else if(arg.Equals("--stringdeobfname"))
 							current = ArgumentParsingMode.StringDeobfName;
 						else if(arg.Equals("--stringdeobfintname"))
@@ -121,10 +118,6 @@ namespace OpusMutatum {
 						break;
 					case ArgumentParsingMode.MonoModPath:
 						PathToMonoMod = arg;
-						current = ArgumentParsingMode.Argument;
-						break;
-					case ArgumentParsingMode.MainMethodName:
-						MainMethodName = arg;
 						current = ArgumentParsingMode.Argument;
 						break;
 					case ArgumentParsingMode.StringDeobfName:
@@ -183,12 +176,35 @@ namespace OpusMutatum {
 			// just run MONOMODDED_IntermediaryLightning.exe
 		}
 
+		static void FindStringDeobfMethod(MethodDefinition mainMethod) {
+			if (StringDeobfName == null) {
+				if (mainMethod.Body != null && mainMethod.Body.Instructions != null) {
+					var candidateMethods = new HashSet<string>();
+					foreach (var instr in mainMethod.Body.Instructions) {
+						if (instr.Operand is MethodReference methodRef && methodRef.Resolve() != null) {
+							var method = methodRef.Resolve();
+							// deobf method should be a static method of signature (int) => string
+							if (method.IsStatic && method.Parameters.Count == 1 && method.Parameters[0].ParameterType.FullName == "System.Int32" && method.ReturnType.FullName == "System.String") {
+								candidateMethods.Add($"{method.DeclaringType.Name}.{method.Name}");
+							}
+						}
+					}
+					// fail unless we found exactly one match
+					if (candidateMethods.Count == 1){
+						StringDeobfName = candidateMethods.Single();
+						return;
+					}
+				}
+				throw new Exception("Failed to find string deobf method");
+			}
+		}
+
 		static void HandleStrings() {
-			// TODO: some config file for main method & parse method?
-			
 			Console.WriteLine("Dumping strings...");
 			LoadLightning();
 			var module = LightningAssembly.MainModule;
+			var mainMethod = module.EntryPoint;
+			FindStringDeobfMethod(mainMethod);
 			var ssplit = StringDeobfName.Split('.');
 			var parse = module.FindMethod(ssplit[0], ssplit[1]);
 
@@ -212,8 +228,6 @@ namespace OpusMutatum {
 
 			Console.WriteLine($"Found {keys.Count()} string keys");
 
-			var msplit = MainMethodName.Split('.');
-			var mainMethod = module.FindMethod(msplit[0], msplit[1]);
 			var proc = mainMethod.Body.GetILProcessor();
 			var first = proc.Body.Instructions.First();
 
@@ -549,7 +563,7 @@ namespace OpusMutatum {
 
 		enum ArgumentParsingMode{
 			Argument, MappingPath, IntermediaryPath, StringsPath, LightningPath, MonoModPath,
-			MainMethodName, StringDeobfName, StringDeobfIntermediaryName
+			StringDeobfName, StringDeobfIntermediaryName
 		}
 
 		enum RunAction{
