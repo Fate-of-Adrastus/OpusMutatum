@@ -19,8 +19,8 @@ namespace OpusMutatum {
         static string PathToIntermediaryLightning = "./IntermediaryLightning.exe";
 		static string PathToModdedLightning = "./ModdedLightning.exe";
 
-        // for merge
-        static string PathToMonoMod = "./MonoMod.exe";
+		// for merge
+		static string PathToMonoMod = "./MonoMod.exe";
 
 		// for strings
 		static string StringDeobfName = null;
@@ -69,8 +69,8 @@ namespace OpusMutatum {
 			foreach(var arg in args) {
 				switch(current) {
 					case ArgumentParsingMode.Argument:
-                        // check if its "run", "strings", "intermediary", merge", "setup", "devExe", "quintDevExe"
-                        // or "--mappings", "--intermediary", "--strings", "--lightning", "--monomod", "--intermediaryPath", "--linux", "--mac", --"win"
+						// check if its "run", "strings", "intermediary", merge", "setup", "devExe", "quintDevExe"
+						// or "--mappings", "--intermediary", "--strings", "--lightning", "--monomod", "--intermediaryPath", "--linux", "--mac", --"win"
                         if (arg.Equals("run"))
 							action = RunAction.Run;
 						else if(arg.Equals("strings"))
@@ -158,7 +158,7 @@ namespace OpusMutatum {
                 }
             }
 
-            try {
+			try {
 				switch(action) {
 					case RunAction.Strings:
 						HandleStrings();
@@ -349,7 +349,7 @@ namespace OpusMutatum {
             Console.WriteLine(IntermediaryLightningAssembly == null ? $"Failed to load intermediary Lightning.exe at \"{PathToIntermediaryLightning}\"" : "Found modded Lightning executable: " + IntermediaryLightningAssembly.FullName);
         }
 
-        static void LoadStrings() {
+		static void LoadStrings() {
 			if(StringsPaths.Count > 0) {
 				foreach(var path in StringsPaths) {
 					if(!File.Exists(path))
@@ -383,7 +383,7 @@ namespace OpusMutatum {
 					throw new Exception($"Expected to only be remapping main types, not generic instances/generic parameters/arrays/references/pointers, but got {type.FullName}");
 				deferredRenames[type] = remapper.RemapType(type);
 				onTypeDefinition(type);
-                foreach (var method in type.Methods) {
+				foreach (var method in type.Methods) {
 					// rtspecialname is applied to constructors and operators
 					if(!method.IsRuntimeSpecialName)
 						deferredRenames[method] = remapper.RemapMethod(method);
@@ -651,6 +651,6 @@ namespace OpusMutatum {
 
 		enum RunAction{
 			Run, Strings, Intermediary, Merge, Setup, DevExe, QuintDevExe
-        }
+		}
 	}
 }
