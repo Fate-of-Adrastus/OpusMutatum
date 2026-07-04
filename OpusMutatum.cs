@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 
 namespace OpusMutatum {
@@ -485,8 +486,8 @@ namespace OpusMutatum {
             Console.WriteLine("Generating dev quint EXE...");
             LoadIntermediaryLightning();
             LoadIntermediaryToNamedMappings();
-            DoRemap(new NamedRemapper(), CollectNestedTypes(IntermediaryLightningAssembly.MainModule.Types), (mref, instr) => { }, typeDef => { });
-            ModdedLightningAssembly.Write("QuintDevLightning.exe");
+            DoRemap(new NamedRemapper(), CollectNestedTypes(IntermediaryLightningAssembly.MainModule.Types), (mref, newName, instr) => { }, typeDef => { });
+            IntermediaryLightningAssembly.Write("QuintDevLightning.exe");
             Console.WriteLine();
         }
         static void RunAndWait(string file, string param){
@@ -558,7 +559,12 @@ namespace OpusMutatum {
 				if(!File.Exists(path))
 					continue;
 				string[] lines = File.ReadAllLines(path);
-				foreach(var line in lines) {
+				if (lines.Length <= 1 || !lines[0].StartsWith("Mapping version: ")) continue;
+                Console.WriteLine("Found valid named mappings: " + Path.GetFileName(path));
+
+                for (int i = 1; i < lines.Length; i++) {
+					var line = lines[i];
+					
 					if(string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
 						continue;
 					if(!line.Contains(","))
@@ -627,9 +633,14 @@ namespace OpusMutatum {
 				if(!File.Exists(path))
 					continue;
 				using (StreamReader file = File.OpenText(path)) {
-					ObfToIntermediaryMappings = new JsonSerializer().Deserialize<Mappings>(new JsonTextReader(file));
-					return;
-				}
+					try { 
+						ObfToIntermediaryMappings = new JsonSerializer().Deserialize<Mappings>(new JsonTextReader(file));
+                    } catch {
+						continue;
+                    }
+                    Console.WriteLine("Found valid intermediary mappings: " + Path.GetFileName(path));
+                    return;
+                }
 			}
 		}
 
