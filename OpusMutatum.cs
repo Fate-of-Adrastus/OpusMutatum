@@ -34,6 +34,7 @@ namespace OpusMutatum {
 		static Dictionary<string, string> IntermediaryToNamedMappings = new Dictionary<string, string>();
 		static Dictionary<int, string> Strings = new Dictionary<int, string>();
 
+		static bool AutoExit = false;
 		// OS enum, since Linux and Mac are different
 		public enum OS {
 			Windows,
@@ -100,7 +101,9 @@ namespace OpusMutatum {
 							OpSystem = OS.Mac;
 						else if(arg.Equals("--win"))
 							OpSystem = OS.Windows;
-						break;
+                        else if (arg.Equals("--autoExit"))
+                            AutoExit = true;
+                        break;
 					case ArgumentParsingMode.IntermediaryToNamedMappingPath:
 						IntermediaryToNamedMappingPaths.Add(arg);
 						current = ArgumentParsingMode.Argument;
@@ -176,7 +179,7 @@ namespace OpusMutatum {
 			}
 			Console.WriteLine("Done.");
 			// keep command line open
-			Console.ReadKey();
+			if (!AutoExit) Console.ReadKey();
 		}
 
 		static void HandleRun() {
