@@ -361,6 +361,8 @@ namespace OpusMutatum {
 			var deferredRenames = new Dictionary<MemberReference, string>();
 			var deferredParamRenames = new Dictionary<ParameterReference, string>();
 			foreach(var type in types) {
+				if (type.IsGenericInstance || type.IsGenericParameter || type.IsArray || type.IsByReference || type.IsPointer)
+					throw new Exception($"Expected to only be remapping main types, not generic instances/generic parameters/arrays/references/pointers, but got {type.FullName}");
 				deferredRenames[type] = remapper.RemapType(type);
 				onTypeDefinition(type);
 				foreach(var method in type.Methods) {
@@ -573,7 +575,14 @@ namespace OpusMutatum {
 				return FindType(type)?.ClassNameB ?? type.Name;
 			}
 
+			private TypeReference GetMainType(TypeReference type) {
+				if (type.IsGenericParameter) throw new Exception($"Attempted to get main type of a generic parameter {type.FullName}");
+				if (type.IsGenericInstance || type.IsArray || type.IsByReference || type.IsPointer) return GetMainType(type.GetElementType());
+				return type;
+			}
+
 			private ClassMapping FindType(TypeReference type) {
+				type = GetMainType(type); // Ignore generics, array types, reference types, etc
 				return ObfToIntermediaryMappings.Classes.Where(cls => cls.ClassFullNameA == type.FullName).SingleOrNull();
 			}
 
