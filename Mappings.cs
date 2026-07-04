@@ -55,8 +55,11 @@ namespace OpusMutatum {
 		// these methods should return the current name if there is no remapping to be done
 		string RemapType(TypeReference type);
 		string RemapField(FieldReference field);
-		string RemapMethod(MethodReference method);
-		string RemapMethodParam(ParameterReference param, MethodReference method);
-		string RemapGeneric(GenericParameter generic);
-	}
+		string RemapMethod(MethodReference method, bool useCurrentMehod = false);
+		string RemapMethodParam(ParameterReference param, MethodReference method, bool useCurrentMehod = false);
+		string RemapGeneric(GenericParameter generic, bool useCurrentMehod = false);
+
+		// Discard the current method reference if there is any.
+		void CompleteCurrentMethod();
+    }
 }

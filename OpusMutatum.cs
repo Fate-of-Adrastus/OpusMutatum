@@ -354,17 +354,23 @@ namespace OpusMutatum {
 		}
 
 		public static void DoRemap(Remapper remapper, Collection<TypeDefinition> types, Action<MethodReference, Instruction> onMethodReference, Action<TypeDefinition> onTypeDefinition) {
-			foreach(var type in types) {
-				type.Name = remapper.RemapType(type);
+
+            Dictionary<TypeDefinition, string> typeNames = new Dictionary<TypeDefinition, string>();
+            Dictionary<FieldDefinition, string> fieldNames = new Dictionary<FieldDefinition, string>();
+            Dictionary<MethodDefinition, string> methodNames = new Dictionary<MethodDefinition, string>();
+            Dictionary<GenericParameter, string> genericNames = new Dictionary<GenericParameter, string>();
+            Dictionary<ParameterDefinition, string> paramNames = new Dictionary<ParameterDefinition, string>();
+            foreach (var type in types) {
+				typeNames.Add(type, remapper.RemapType(type));
 				onTypeDefinition(type);
-				foreach(var method in type.Methods) {
+                foreach (var method in type.Methods) {
 					// rtspecialname is applied to constructors and operators
-					if(!method.IsRuntimeSpecialName)
-						method.Name = remapper.RemapMethod(method);
-					foreach(var generic in method.GenericParameters)
-						generic.Name = remapper.RemapGeneric(generic);
+					if (!method.IsRuntimeSpecialName)
+                        methodNames.Add(method, remapper.RemapMethod(method, true));
+					foreach (var generic in method.GenericParameters)
+						genericNames.Add(generic, remapper.RemapGeneric(generic, true));
 					foreach(var param in method.Parameters)
-						param.Name = remapper.RemapMethodParam(param, method);
+                        paramNames.Add(param, remapper.RemapMethodParam(param, method, true));
 					// references to members in classes with generic parameters don't get remapped automatically
 					// so here we update those references ourself
 					if(method.Body != null && method.Body.Instructions != null) {
@@ -386,14 +392,22 @@ namespace OpusMutatum {
 							foreach(var arg in attr.ConstructorArguments)
 								if(arg.Type.Name.Equals("Type"))
 									(arg.Value as TypeReference).Name = remapper.RemapType(arg.Value as TypeReference);
-					// TODO: map locals
-				}
+
+                    // TODO: map locals
+                    remapper.CompleteCurrentMethod();
+                }
 				foreach(var field in type.Fields)
-					field.Name = remapper.RemapField(field);
+                    fieldNames.Add(field, remapper.RemapField(field));
 				foreach(var generic in type.GenericParameters)
-					generic.Name = remapper.RemapGeneric(generic);
+                    genericNames.Add(generic, remapper.RemapGeneric(generic, true));
 			}
-		}
+
+            foreach (var item in typeNames) { item.Key.Name = item.Value; }
+            foreach (var item in fieldNames) { item.Key.Name = item.Value; }
+            foreach (var item in methodNames) { item.Key.Name = item.Value; }
+            foreach (var item in genericNames) { item.Key.Name = item.Value; }
+            foreach (var item in paramNames) { item.Key.Name = item.Value; }
+        }
 
 		static Collection<TypeDefinition> CollectNestedTypes(Collection<TypeDefinition> topLevel) {
 			var types = new Collection<TypeDefinition>();
@@ -493,17 +507,17 @@ namespace OpusMutatum {
 				return GetNamedForIntermediary(field.Name, field.DeclaringType);
 			}
 
-			public string RemapGeneric(GenericParameter generic)
+			public string RemapGeneric(GenericParameter generic, bool useCurrentMehod = false)
 			{
 				return GetNamedForIntermediary(generic.Name, generic.Type == GenericParameterType.Method ? generic.DeclaringMethod.DeclaringType : generic.DeclaringType);
 			}
 
-			public string RemapMethod(MethodReference method)
+			public string RemapMethod(MethodReference method, bool useCurrentMehod = false)
 			{
 				return GetNamedForIntermediary(method.Name, method.DeclaringType);
 			}
 
-			public string RemapMethodParam(ParameterReference param, MethodReference method)
+			public string RemapMethodParam(ParameterReference param, MethodReference method, bool useCurrentMehod = false)
 			{
 				return GetNamedForIntermediary(param.Name, method.DeclaringType);
 			}
@@ -511,8 +525,10 @@ namespace OpusMutatum {
 			public string RemapType(TypeReference type)
 			{
 				return GetNamedForIntermediary(type.Name, type.DeclaringType);
-			}
-		}
+            }
+
+            public void CompleteCurrentMethod() {}
+        }
 
 		static void LoadIntermediaryToNamedMappings() {
 			foreach(var path in IntermediaryToNamedMappingPaths) {
@@ -532,28 +548,28 @@ namespace OpusMutatum {
 
 		class IntermediaryRemapper : Remapper
 		{
-			public string RemapField(FieldReference field)
+            public string RemapField(FieldReference field)
 			{
 				return FindType(field.DeclaringType)?.Fields.Where(f => f.FieldNameA == field.Name).SingleOrNull()?.FieldNameB ?? field.Name;
 			}
 
-			public string RemapGeneric(GenericParameter generic)
+			public string RemapGeneric(GenericParameter generic, bool useCurrentMehod = false)
 			{
 				if (generic.Type == GenericParameterType.Method) {
-					return FindMethod(generic.DeclaringMethod)?.GenericParameters.Where(g => g.GenericNameA == generic.Name).SingleOrNull()?.GenericNameB ?? generic.Name;
+					return FindMethod(generic.DeclaringMethod, useCurrentMehod)?.GenericParameters.Where(g => g.GenericNameA == generic.Name).SingleOrNull()?.GenericNameB ?? generic.Name;
 				} else {
 					return FindType(generic.DeclaringType)?.GenericParameters.Where(g => g.GenericNameA == generic.Name).SingleOrNull()?.GenericNameB ?? generic.Name;
 				}
 			}
 
-			public string RemapMethod(MethodReference method)
+			public string RemapMethod(MethodReference method, bool useCurrentMehod = false)
 			{
-				return FindMethod(method)?.MethodNameB ?? method.Name;
+				return FindMethod(method, useCurrentMehod)?.MethodNameB ?? method.Name;
 			}
 
-			public string RemapMethodParam(ParameterReference param, MethodReference method)
+			public string RemapMethodParam(ParameterReference param, MethodReference method, bool useCurrentMehod = false)
 			{
-				return FindMethod(method)?.Parameters.Where(p => p.ParameterNameA == param.Name).SingleOrNull()?.ParameterNameB ?? param.Name;
+                return FindMethod(method, useCurrentMehod)?.Parameters.Where(p => p.ParameterNameA == param.Name).SingleOrNull()?.ParameterNameB ?? param.Name;
 			}
 
 			public string RemapType(TypeReference type)
@@ -562,18 +578,33 @@ namespace OpusMutatum {
 			}
 
 			private ClassMapping FindType(TypeReference type) {
-				return ObfToIntermediaryMappings.Classes.Where(cls => cls.ClassFullNameA == type.FullName).SingleOrNull();
+				string name = TrimGeneric(type.FullName);
+                return ObfToIntermediaryMappings.Classes.Where(cls => cls.ClassFullNameA == name ).SingleOrNull();
 			}
 
-			private MethodMapping FindMethod(MethodReference method) {
-				return FindType(method.DeclaringType)?.Methods.Where(m => {
-					return m.MethodNameA == method.Name
-							&& m.ReturnTypeFullNameA == method.ReturnType.FullName
-							&& m.ArgumentTypeFullNamesA.Count == method.Parameters.Count
-							&& m.ArgumentTypeFullNamesA.Zip(method.Parameters, (a,b)=>(a,b)).All(pair => pair.a == pair.b.ParameterType.FullName);
-				}).SingleOrNull();
+			private MethodMapping FindMethod(MethodReference method, bool useCurrentMehod = false) {
+				
+				if (useCurrentMehod && currentMethod != null) return currentMethod;
+
+				var methodMapping = FindType(method.DeclaringType)?.Methods.Where(m => {
+                    return (m.MethodNameA == method.Name || m.MethodNameB == method.Name)
+                            && m.ReturnTypeFullNameA == method.ReturnType.FullName
+                            && m.ArgumentTypeFullNamesA.Count == method.Parameters.Count
+                            && m.ArgumentTypeFullNamesA.Zip(method.Parameters, (a, b) => (a, b)).All(pair => (pair.a == pair.b.ParameterType.FullName));
+                }).SingleOrNull();
+
+				if (useCurrentMehod) currentMethod = methodMapping;
+				return methodMapping;
+            }
+
+			private MethodMapping currentMethod;
+            public void CompleteCurrentMethod() {
+                currentMethod = null;
 			}
-		}
+			private string TrimGeneric(string str) {
+				return str.Split('<')[0];
+			}
+        }
 
 		static void LoadObfToIntermediaryMappings() {
 			// TODO choose file based on Lightning.exe MVID
