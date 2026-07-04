@@ -1,6 +1,7 @@
 ﻿using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Collections.Generic;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,14 +24,14 @@ namespace OpusMutatum {
 		static string StringDeobfName = null;
 		static string StringDeobfIntermediaryName = "method_131";
 
-		static List<string> MappingPaths = new List<string>();
-		static List<string> IntermediaryPaths = new List<string>();
+		static List<string> IntermediaryToNamedMappingPaths = new List<string>();
+		static List<string> ObfToIntermediaryMappingPaths = new List<string>();
 		static List<string> StringsPaths = new List<string>();
 
 		static AssemblyDefinition LightningAssembly, ModdedLightningAssembly;
 
-		static Dictionary<string, string> Intermediary = new Dictionary<string, string>();
-		static Dictionary<string, string> Mappings = new Dictionary<string, string>();
+		static Mappings ObfToIntermediaryMappings;
+		static Dictionary<string, string> IntermediaryToNamedMappings = new Dictionary<string, string>();
 		static Dictionary<int, string> Strings = new Dictionary<int, string>();
 
 		// OS enum, since Linux and Mac are different
@@ -80,9 +81,9 @@ namespace OpusMutatum {
 						else if(arg.Equals("devExe"))
 							action = RunAction.DevExe;
 						else if(arg.Equals("--mappings"))
-							current = ArgumentParsingMode.MappingPath;
+							current = ArgumentParsingMode.IntermediaryToNamedMappingPath;
 						else if(arg.Equals("--intermediary"))
-							current = ArgumentParsingMode.IntermediaryPath;
+							current = ArgumentParsingMode.ObfToIntermediaryMappingPath;
 						else if(arg.Equals("--strings"))
 							current = ArgumentParsingMode.StringsPath;
 						else if(arg.Equals("--lightning"))
@@ -100,12 +101,12 @@ namespace OpusMutatum {
 						else if(arg.Equals("--win"))
 							OpSystem = OS.Windows;
 						break;
-					case ArgumentParsingMode.MappingPath:
-						MappingPaths.Add(arg);
+					case ArgumentParsingMode.IntermediaryToNamedMappingPath:
+						IntermediaryToNamedMappingPaths.Add(arg);
 						current = ArgumentParsingMode.Argument;
 						break;
-					case ArgumentParsingMode.IntermediaryPath:
-						IntermediaryPaths.Add(arg);
+					case ArgumentParsingMode.ObfToIntermediaryMappingPath:
+						ObfToIntermediaryMappingPaths.Add(arg);
 						current = ArgumentParsingMode.Argument;
 						break;
 					case ArgumentParsingMode.StringsPath:
@@ -137,6 +138,12 @@ namespace OpusMutatum {
 			if(StringsPaths.Count == 0) {
 				StringsPaths.Add("./StringDumping/out.csv");
 				StringsPaths.Add("./out.csv");
+			}
+
+			if(ObfToIntermediaryMappingPaths.Count == 0) {
+				foreach(var path in Directory.GetFiles("intermediary")) {
+					ObfToIntermediaryMappingPaths.Add(path);
+				}
 			}
 
 			try {
@@ -281,9 +288,9 @@ namespace OpusMutatum {
 			LoadLightning();
 			LoadStrings();
 			// take Lightning.exe, remap to Intermediary
-			CollectIntermediary();
+			LoadObfToIntermediaryMappings();
 			List<(Instruction, int)> stringsToBeInlined = new List<(Instruction, int)>();
-			DoRemap(GetIntermediaryForName, Intermediary.ContainsKey, CollectNestedTypes(LightningAssembly.MainModule.Types),
+			DoRemap(new IntermediaryRemapper(), CollectNestedTypes(LightningAssembly.MainModule.Types),
 				(mref, instr) => {
 					if(mref.Name.Equals(StringDeobfIntermediaryName) && mref.Parameters.Count == 1)
 						if(instr.Previous.OpCode == OpCodes.Ldc_I4)
@@ -346,45 +353,45 @@ namespace OpusMutatum {
 			}
 		}
 
-		public static void DoRemap(Func<string, TypeDefinition, string> remapper, Func<string, bool> remapChecker, Collection<TypeDefinition> types, Action<MethodReference, Instruction> onMethodReference, Action<TypeDefinition> onTypeDefinition) {
+		public static void DoRemap(Remapper remapper, Collection<TypeDefinition> types, Action<MethodReference, Instruction> onMethodReference, Action<TypeDefinition> onTypeDefinition) {
 			foreach(var type in types) {
-				type.Name = remapper(type.Name, type);
+				type.Name = remapper.RemapType(type);
 				onTypeDefinition(type);
 				foreach(var method in type.Methods) {
 					// rtspecialname is applied to constructors and operators
 					if(!method.IsRuntimeSpecialName)
-						method.Name = remapper(method.Name, type);
+						method.Name = remapper.RemapMethod(method);
+					foreach(var generic in method.GenericParameters)
+						generic.Name = remapper.RemapGeneric(generic);
 					foreach(var param in method.Parameters)
-						param.Name = remapper(param.Name, type);
+						param.Name = remapper.RemapMethodParam(param, method);
 					// references to members in classes with generic parameters don't get remapped automatically
 					// so here we update those references ourself
 					if(method.Body != null && method.Body.Instructions != null) {
 						foreach(var instr in method.Body.Instructions) {
 							if(instr != null && instr.Operand is MethodReference mref && !mref.IsWindowsRuntimeProjection) {
-								if(remapChecker(mref.Name)) {
-									if(mref.IsGenericInstance)
-										mref = ((GenericInstanceMethod)mref).GetElementMethod();
-									mref.Name = remapper(mref.Name, type);
-								}
+								if(mref.IsGenericInstance)
+									mref = ((GenericInstanceMethod)mref).GetElementMethod();
+								mref.Name = remapper.RemapMethod(mref);
 								// also take the oppurtunity to replace references to string decoder with the actual string
 								onMethodReference(mref, instr);
 							}
 
-							if(instr != null && instr.Operand is FieldReference fref && remapChecker(fref.Name))
-								fref.Name = remapper(fref.Name, type);
+							if(instr != null && instr.Operand is FieldReference fref)
+								fref.Name = remapper.RemapField(fref);
 						}
 					}
 					foreach(var attr in method.CustomAttributes)
 						if(attr.HasConstructorArguments)
 							foreach(var arg in attr.ConstructorArguments)
 								if(arg.Type.Name.Equals("Type"))
-									(arg.Value as TypeReference).Name = remapper((arg.Value as TypeReference).Name, type);
+									(arg.Value as TypeReference).Name = remapper.RemapType(arg.Value as TypeReference);
 					// TODO: map locals
 				}
 				foreach(var field in type.Fields)
-					field.Name = remapper(field.Name, type);
+					field.Name = remapper.RemapField(field);
 				foreach(var generic in type.GenericParameters)
-					generic.Name = remapper(generic.Name, type);
+					generic.Name = remapper.RemapGeneric(generic);
 			}
 		}
 
@@ -393,72 +400,6 @@ namespace OpusMutatum {
 			foreach(var type in topLevel)
 				VisitTypes(type, t => types.Add(t));
 			return types;
-		}
-
-		static void CollectIntermediary() {
-			// if a name is a valid CSharp name, it is its own intermediary
-			// parse preset intermediary?
-
-			// or gen intermediary
-			int classIndex = 0, enumIndex = 0, interfaceIndex = 0, methodIndex = 0, structIndex = 0, delegateIndex = 0, fieldIndex = 0, genericIndex = 0, paramIndex = 0;
-			foreach(var type in CollectNestedTypes(LightningAssembly.MainModule.Types)) {
-				if(!Intermediary.ContainsKey(type.Name) && !type.IsRuntimeSpecialName) {
-					// its a delegate if it descends from System.MulticastDelegate
-					if(type.BaseType?.FullName?.Equals("System.MulticastDelegate") ?? false) {
-						Intermediary.Add(type.Name, "delegate_" + delegateIndex);
-						delegateIndex++;
-					} else if(type.IsInterface) {
-						Intermediary.Add(type.Name, "interface_" + interfaceIndex);
-						interfaceIndex++;
-					} else if(type.IsEnum) {
-						Intermediary.Add(type.Name, "enum_" + enumIndex);
-						enumIndex++;
-					} else if(type.IsValueType) {
-						Intermediary.Add(type.Name, "struct_" + structIndex);
-						structIndex++;
-					} else {
-						Intermediary.Add(type.Name, "class_" + classIndex);
-						classIndex++;
-					}
-				}
-				foreach(var method in type.Methods) {
-					if(!Intermediary.ContainsKey(method.Name) && !method.IsRuntimeSpecialName) {
-						Intermediary.Add(method.Name, "method_" + methodIndex);
-						methodIndex++;
-					}
-					foreach(var param in method.Parameters) {
-						if(!Intermediary.ContainsKey(param.Name)) {
-							Intermediary.Add(param.Name, "param_" + paramIndex);
-							paramIndex++;
-						}
-					}
-					// TODO: map locals
-				}
-				foreach(var field in type.Fields) {
-					if(!Intermediary.ContainsKey(field.Name) && !field.IsRuntimeSpecialName) {
-						Intermediary.Add(field.Name, "field_" + fieldIndex);
-						fieldIndex++;
-					}
-				}
-				foreach(var generic in type.GenericParameters) {
-					if(!Intermediary.ContainsKey(generic.Name)) {
-						Intermediary.Add(generic.Name, "generic_" + genericIndex);
-						genericIndex++;
-					}
-				}
-			}
-		}
-
-		static string GetIntermediaryForName(string name, TypeDefinition owner) {
-			// if its already valid or its not in intermediary, leave it
-			if(!Intermediary.ContainsKey(name) || Regex.Match(name, "^[a-zA-Z_\\`][a-zA-Z0-9_\\`]*$").Success)
-				return name;
-			// On Linux, changing <Module> to class_0 made Qml entirely nonfunctional.
-			if(Intermediary[name] == "class_0") {
-				return name;
-			}
-			// return intermediary
-			return Intermediary[name];
 		}
 
 		static void VisitTypes(TypeDefinition top, Action<TypeDefinition> act) {
@@ -503,8 +444,8 @@ namespace OpusMutatum {
 			// take ModdedLightning.exe, remap to named
 			Console.WriteLine("Generating dev EXE...");
 			LoadModdedLightning();
-			LoadMappings();
-			DoRemap(GetNamedForIntermediary, Mappings.ContainsKey, CollectNestedTypes(ModdedLightningAssembly.MainModule.Types), (mref, instr) => { }, typeDef => { });
+			LoadIntermediaryToNamedMappings();
+			DoRemap(new NamedRemapper(), CollectNestedTypes(ModdedLightningAssembly.MainModule.Types), (mref, instr) => { }, typeDef => { });
 			ModdedLightningAssembly.Write("DevLightning.exe");
 			Console.WriteLine();
 		}
@@ -533,10 +474,10 @@ namespace OpusMutatum {
 			Console.WriteLine();
 		}
 
-		static string GetNamedForIntermediary(string intermediary, TypeDefinition owner) {
-			if(!Mappings.ContainsKey(intermediary))
+		static string GetNamedForIntermediary(string intermediary, TypeReference owner) {
+			if(!IntermediaryToNamedMappings.ContainsKey(intermediary))
 				return intermediary;
-			string name = Mappings[intermediary];
+			string name = IntermediaryToNamedMappings[intermediary];
 			if(name.Contains(".")) {
 				string[] split = name.Split('.');
 				name = split[split.Length - 1];
@@ -545,8 +486,36 @@ namespace OpusMutatum {
 			return name;
 		}
 
-		static void LoadMappings() {
-			foreach(var path in MappingPaths) {
+		class NamedRemapper : Remapper
+		{
+			public string RemapField(FieldReference field)
+			{
+				return GetNamedForIntermediary(field.Name, field.DeclaringType);
+			}
+
+			public string RemapGeneric(GenericParameter generic)
+			{
+				return GetNamedForIntermediary(generic.Name, generic.Type == GenericParameterType.Method ? generic.DeclaringMethod.DeclaringType : generic.DeclaringType);
+			}
+
+			public string RemapMethod(MethodReference method)
+			{
+				return GetNamedForIntermediary(method.Name, method.DeclaringType);
+			}
+
+			public string RemapMethodParam(ParameterReference param, MethodReference method)
+			{
+				return GetNamedForIntermediary(param.Name, method.DeclaringType);
+			}
+
+			public string RemapType(TypeReference type)
+			{
+				return GetNamedForIntermediary(type.Name, type.DeclaringType);
+			}
+		}
+
+		static void LoadIntermediaryToNamedMappings() {
+			foreach(var path in IntermediaryToNamedMappingPaths) {
 				if(!File.Exists(path))
 					continue;
 				string[] lines = File.ReadAllLines(path);
@@ -556,13 +525,70 @@ namespace OpusMutatum {
 					if(!line.Contains(","))
 						Console.WriteLine($"Invalid line in {path}: \"{line}\", missing comma.");
 					string[] parts = line.Split(',');
-					Mappings[parts[0]] = parts[1];
+					IntermediaryToNamedMappings[parts[0]] = parts[1];
+				}
+			}
+		}
+
+		class IntermediaryRemapper : Remapper
+		{
+			public string RemapField(FieldReference field)
+			{
+				return FindType(field.DeclaringType)?.Fields.Where(f => f.FieldNameA == field.Name).SingleOrNull()?.FieldNameB ?? field.Name;
+			}
+
+			public string RemapGeneric(GenericParameter generic)
+			{
+				if (generic.Type == GenericParameterType.Method) {
+					return FindMethod(generic.DeclaringMethod)?.GenericParameters.Where(g => g.GenericNameA == generic.Name).SingleOrNull()?.GenericNameB ?? generic.Name;
+				} else {
+					return FindType(generic.DeclaringType)?.GenericParameters.Where(g => g.GenericNameA == generic.Name).SingleOrNull()?.GenericNameB ?? generic.Name;
+				}
+			}
+
+			public string RemapMethod(MethodReference method)
+			{
+				return FindMethod(method)?.MethodNameB ?? method.Name;
+			}
+
+			public string RemapMethodParam(ParameterReference param, MethodReference method)
+			{
+				return FindMethod(method)?.Parameters.Where(p => p.ParameterNameA == param.Name).SingleOrNull()?.ParameterNameB ?? param.Name;
+			}
+
+			public string RemapType(TypeReference type)
+			{
+				return FindType(type)?.ClassNameB ?? type.Name;
+			}
+
+			private ClassMapping FindType(TypeReference type) {
+				return ObfToIntermediaryMappings.Classes.Where(cls => cls.ClassFullNameA == type.FullName).SingleOrNull();
+			}
+
+			private MethodMapping FindMethod(MethodReference method) {
+				return FindType(method.DeclaringType)?.Methods.Where(m => {
+					return m.MethodNameA == method.Name
+							&& m.ReturnTypeFullNameA == method.ReturnType.FullName
+							&& m.ArgumentTypeFullNamesA.Count == method.Parameters.Count
+							&& m.ArgumentTypeFullNamesA.Zip(method.Parameters, (a,b)=>(a,b)).All(pair => pair.a == pair.b.ParameterType.FullName);
+				}).SingleOrNull();
+			}
+		}
+
+		static void LoadObfToIntermediaryMappings() {
+			// TODO choose file based on Lightning.exe MVID
+			foreach (var path in ObfToIntermediaryMappingPaths) {
+				if(!File.Exists(path))
+					continue;
+				using (StreamReader file = File.OpenText(path)) {
+					ObfToIntermediaryMappings = new JsonSerializer().Deserialize<Mappings>(new JsonTextReader(file));
+					return;
 				}
 			}
 		}
 
 		enum ArgumentParsingMode{
-			Argument, MappingPath, IntermediaryPath, StringsPath, LightningPath, MonoModPath,
+			Argument, IntermediaryToNamedMappingPath, ObfToIntermediaryMappingPath, StringsPath, LightningPath, MonoModPath,
 			StringDeobfName, StringDeobfIntermediaryName
 		}
 
