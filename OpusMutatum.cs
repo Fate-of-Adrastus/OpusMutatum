@@ -291,8 +291,8 @@ namespace OpusMutatum {
 			LoadObfToIntermediaryMappings();
 			List<(Instruction, int)> stringsToBeInlined = new List<(Instruction, int)>();
 			DoRemap(new IntermediaryRemapper(), CollectNestedTypes(LightningAssembly.MainModule.Types),
-				(mref, instr) => {
-					if(mref.Name.Equals(StringDeobfIntermediaryName) && mref.Parameters.Count == 1)
+				(mref, newName, instr) => {
+					if(newName.Equals(StringDeobfIntermediaryName) && mref.Parameters.Count == 1)
 						if(instr.Previous.OpCode == OpCodes.Ldc_I4)
 							stringsToBeInlined.Add((instr, (int)instr.Previous.Operand));
 				},
@@ -353,18 +353,21 @@ namespace OpusMutatum {
 			}
 		}
 
-		public static void DoRemap(Remapper remapper, Collection<TypeDefinition> types, Action<MethodReference, Instruction> onMethodReference, Action<TypeDefinition> onTypeDefinition) {
+		public static void DoRemap(Remapper remapper, Collection<TypeDefinition> types, Action<MethodReference, string, Instruction> onMethodReference, Action<TypeDefinition> onTypeDefinition) {
+			// Renames are deferred so that everything compares against old names, rather than a mixture of old and new names
+			var deferredRenames = new Dictionary<MemberReference, string>();
+			var deferredParamRenames = new Dictionary<ParameterReference, string>();
 			foreach(var type in types) {
-				type.Name = remapper.RemapType(type);
+				deferredRenames[type] = remapper.RemapType(type);
 				onTypeDefinition(type);
 				foreach(var method in type.Methods) {
 					// rtspecialname is applied to constructors and operators
 					if(!method.IsRuntimeSpecialName)
-						method.Name = remapper.RemapMethod(method);
+						deferredRenames[method] = remapper.RemapMethod(method);
 					foreach(var generic in method.GenericParameters)
-						generic.Name = remapper.RemapGeneric(generic);
+						deferredRenames[generic] = remapper.RemapGeneric(generic);
 					foreach(var param in method.Parameters)
-						param.Name = remapper.RemapMethodParam(param, method);
+						deferredParamRenames[param] = remapper.RemapMethodParam(param, method);
 					// references to members in classes with generic parameters don't get remapped automatically
 					// so here we update those references ourself
 					if(method.Body != null && method.Body.Instructions != null) {
@@ -372,26 +375,32 @@ namespace OpusMutatum {
 							if(instr != null && instr.Operand is MethodReference mref && !mref.IsWindowsRuntimeProjection) {
 								if(mref.IsGenericInstance)
 									mref = ((GenericInstanceMethod)mref).GetElementMethod();
-								mref.Name = remapper.RemapMethod(mref);
+								deferredRenames[mref] = remapper.RemapMethod(mref);
 								// also take the oppurtunity to replace references to string decoder with the actual string
-								onMethodReference(mref, instr);
+								onMethodReference(mref, deferredRenames[mref], instr);
 							}
 
 							if(instr != null && instr.Operand is FieldReference fref)
-								fref.Name = remapper.RemapField(fref);
+								deferredRenames[fref] = remapper.RemapField(fref);
 						}
 					}
 					foreach(var attr in method.CustomAttributes)
 						if(attr.HasConstructorArguments)
 							foreach(var arg in attr.ConstructorArguments)
 								if(arg.Type.Name.Equals("Type"))
-									(arg.Value as TypeReference).Name = remapper.RemapType(arg.Value as TypeReference);
+									deferredRenames[arg.Value as TypeReference] = remapper.RemapType(arg.Value as TypeReference);
 					// TODO: map locals
 				}
 				foreach(var field in type.Fields)
-					field.Name = remapper.RemapField(field);
+					deferredRenames[field] = remapper.RemapField(field);
 				foreach(var generic in type.GenericParameters)
-					generic.Name = remapper.RemapGeneric(generic);
+					deferredRenames[generic] = remapper.RemapGeneric(generic);
+			}
+			foreach (var pair in deferredRenames) {
+				pair.Key.Name = pair.Value;
+			}
+			foreach (var pair in deferredParamRenames) {
+				pair.Key.Name = pair.Value;
 			}
 		}
 
@@ -445,7 +454,7 @@ namespace OpusMutatum {
 			Console.WriteLine("Generating dev EXE...");
 			LoadModdedLightning();
 			LoadIntermediaryToNamedMappings();
-			DoRemap(new NamedRemapper(), CollectNestedTypes(ModdedLightningAssembly.MainModule.Types), (mref, instr) => { }, typeDef => { });
+			DoRemap(new NamedRemapper(), CollectNestedTypes(ModdedLightningAssembly.MainModule.Types), (mref, newName, instr) => { }, typeDef => { });
 			ModdedLightningAssembly.Write("DevLightning.exe");
 			Console.WriteLine();
 		}
