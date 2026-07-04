@@ -58,5 +58,5 @@ namespace OpusMutatum {
 		string RemapMethod(MethodReference method);
 		string RemapMethodParam(ParameterReference param, MethodReference method);
 		string RemapGeneric(GenericParameter generic);
-    }
+	}
 }
