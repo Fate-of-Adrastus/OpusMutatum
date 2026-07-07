@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 
 namespace OpusMutatum {
@@ -482,7 +481,7 @@ namespace OpusMutatum {
 			Console.WriteLine();
 		}
         static void HandleQuintDevExe() {
-            // take LoadIntermediaryLightning.exe, remap to named (no merged quintessential)
+            // take IntermediaryLightning.exe, remap to named (no merged quintessential)
             Console.WriteLine("Generating dev quint EXE...");
             LoadIntermediaryLightning();
             LoadIntermediaryToNamedMappings();
