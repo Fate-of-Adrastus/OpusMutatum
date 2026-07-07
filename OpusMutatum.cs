@@ -15,6 +15,7 @@ namespace OpusMutatum {
 
 		// For intermediary or devExe
 		static string PathToLightning = "./Lightning.exe";
+        static string PathToIntermediaryLightning = "./IntermediaryLightning.exe";
 		static string PathToModdedLightning = "./ModdedLightning.exe";
 
 		// for merge
@@ -28,7 +29,7 @@ namespace OpusMutatum {
 		static List<string> ObfToIntermediaryMappingPaths = new List<string>();
 		static List<string> StringsPaths = new List<string>();
 
-		static AssemblyDefinition LightningAssembly, ModdedLightningAssembly;
+		static AssemblyDefinition LightningAssembly, IntermediaryLightningAssembly, ModdedLightningAssembly;
 
 		static Mappings ObfToIntermediaryMappings;
 		static Dictionary<string, string> IntermediaryToNamedMappings = new Dictionary<string, string>();
@@ -67,9 +68,9 @@ namespace OpusMutatum {
 			foreach(var arg in args) {
 				switch(current) {
 					case ArgumentParsingMode.Argument:
-						// check if its "run", "strings", "intermediary", merge", "setup", "devExe"
+						// check if its "run", "strings", "intermediary", merge", "setup", "devExe", "quintDevExe"
 						// or "--mappings", "--intermediary", "--strings", "--lightning", "--monomod", "--intermediaryPath", "--linux", "--mac", --"win"
-						if(arg.Equals("run"))
+						if (arg.Equals("run"))
 							action = RunAction.Run;
 						else if(arg.Equals("strings"))
 							action = RunAction.Strings;
@@ -81,7 +82,9 @@ namespace OpusMutatum {
 							action = RunAction.Setup;
 						else if(arg.Equals("devExe"))
 							action = RunAction.DevExe;
-						else if(arg.Equals("--mappings"))
+                        else if (arg.Equals("quintDevExe"))
+                            action = RunAction.QuintDevExe;
+                        else if(arg.Equals("--mappings"))
 							current = ArgumentParsingMode.IntermediaryToNamedMappingPath;
 						else if(arg.Equals("--intermediary"))
 							current = ArgumentParsingMode.ObfToIntermediaryMappingPath;
@@ -144,10 +147,15 @@ namespace OpusMutatum {
 			}
 
 			if(ObfToIntermediaryMappingPaths.Count == 0) {
-				foreach(var path in Directory.GetFiles("intermediary")) {
+				foreach(var path in Directory.GetFiles("mappings")) {
 					ObfToIntermediaryMappingPaths.Add(path);
 				}
 			}
+            if (IntermediaryToNamedMappingPaths.Count == 0) {
+                foreach (var path in Directory.GetFiles("mappings")) {
+                    IntermediaryToNamedMappingPaths.Add(path);
+                }
+            }
 
 			try {
 				switch(action) {
@@ -165,7 +173,10 @@ namespace OpusMutatum {
 						HandleIntermediary();
 						HandleMerge();
 						break;
-					case RunAction.DevExe:
+					case RunAction.QuintDevExe:
+                        HandleQuintDevExe();
+                        break;
+                    case RunAction.DevExe:
 						HandleDevExe();
 						break;
 					case RunAction.Run:
@@ -330,6 +341,12 @@ namespace OpusMutatum {
 			ModdedLightningAssembly = AssemblyDefinition.ReadAssembly(PathToModdedLightning);
 			Console.WriteLine(ModdedLightningAssembly == null ? $"Failed to load modded Lightning.exe at \"{PathToModdedLightning}\"" : "Found modded Lightning executable: " + ModdedLightningAssembly.FullName);
 		}
+		
+        static void LoadIntermediaryLightning() {
+            Console.WriteLine("Reading intermediary Lightning.exe...");
+            IntermediaryLightningAssembly = AssemblyDefinition.ReadAssembly(PathToIntermediaryLightning);
+            Console.WriteLine(IntermediaryLightningAssembly == null ? $"Failed to load intermediary Lightning.exe at \"{PathToIntermediaryLightning}\"" : "Found modded Lightning executable: " + IntermediaryLightningAssembly.FullName);
+        }
 
 		static void LoadStrings() {
 			if(StringsPaths.Count > 0) {
@@ -365,7 +382,7 @@ namespace OpusMutatum {
 					throw new Exception($"Expected to only be remapping main types, not generic instances/generic parameters/arrays/references/pointers, but got {type.FullName}");
 				deferredRenames[type] = remapper.RemapType(type);
 				onTypeDefinition(type);
-				foreach(var method in type.Methods) {
+				foreach (var method in type.Methods) {
 					// rtspecialname is applied to constructors and operators
 					if(!method.IsRuntimeSpecialName)
 						deferredRenames[method] = remapper.RemapMethod(method);
@@ -463,8 +480,16 @@ namespace OpusMutatum {
 			ModdedLightningAssembly.Write("DevLightning.exe");
 			Console.WriteLine();
 		}
-
-		static void RunAndWait(string file, string param){
+        static void HandleQuintDevExe() {
+            // take IntermediaryLightning.exe, remap to named (no merged quintessential)
+            Console.WriteLine("Generating dev quint EXE...");
+            LoadIntermediaryLightning();
+            LoadIntermediaryToNamedMappings();
+            DoRemap(new NamedRemapper(), CollectNestedTypes(IntermediaryLightningAssembly.MainModule.Types), (mref, newName, instr) => { }, typeDef => { });
+            IntermediaryLightningAssembly.Write("QuintDevLightning.exe");
+            Console.WriteLine();
+        }
+        static void RunAndWait(string file, string param){
 			Console.WriteLine("Running " + file);
 			if(!File.Exists(file)) {
 				Console.WriteLine("Failed to run " + file + ", file not found.");
@@ -533,7 +558,12 @@ namespace OpusMutatum {
 				if(!File.Exists(path))
 					continue;
 				string[] lines = File.ReadAllLines(path);
-				foreach(var line in lines) {
+				if (lines.Length <= 1 || !lines[0].StartsWith("Mapping version: ")) continue;
+                Console.WriteLine("Found valid named mappings: " + Path.GetFileName(path));
+
+                for (int i = 1; i < lines.Length; i++) {
+					var line = lines[i];
+					
 					if(string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
 						continue;
 					if(!line.Contains(","))
@@ -602,9 +632,14 @@ namespace OpusMutatum {
 				if(!File.Exists(path))
 					continue;
 				using (StreamReader file = File.OpenText(path)) {
-					ObfToIntermediaryMappings = new JsonSerializer().Deserialize<Mappings>(new JsonTextReader(file));
-					return;
-				}
+					try { 
+						ObfToIntermediaryMappings = new JsonSerializer().Deserialize<Mappings>(new JsonTextReader(file));
+                    } catch {
+						continue;
+                    }
+                    Console.WriteLine("Found valid intermediary mappings: " + Path.GetFileName(path));
+                    return;
+                }
 			}
 		}
 
@@ -614,7 +649,7 @@ namespace OpusMutatum {
 		}
 
 		enum RunAction{
-			Run, Strings, Intermediary, Merge, Setup, DevExe
+			Run, Strings, Intermediary, Merge, Setup, DevExe, QuintDevExe
 		}
 	}
 }
