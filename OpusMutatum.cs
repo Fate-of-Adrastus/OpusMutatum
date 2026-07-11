@@ -617,11 +617,13 @@ namespace OpusMutatum {
 			}
 
 			private MethodMapping FindMethod(MethodReference method) {
+				// TODO: generic params stripped when matching method signatures due to Cecil handling generic instance method references strangely
+				// probably not ideal, but maybe it's fine?
 				return FindType(method.DeclaringType)?.Methods.Where(m => {
 					return m.MethodNameA == method.Name
-							&& m.ReturnTypeFullNameA == method.ReturnType.FullName
+							&& m.ReturnTypeFullNameA.Split('`')[0] == method.ReturnType.FullName.Split('`')[0]
 							&& m.ArgumentTypeFullNamesA.Count == method.Parameters.Count
-							&& m.ArgumentTypeFullNamesA.Zip(method.Parameters, (a,b)=>(a,b)).All(pair => pair.a == pair.b.ParameterType.FullName);
+							&& m.ArgumentTypeFullNamesA.Zip(method.Parameters, (a,b)=>(a,b)).All(pair => pair.a.Split('`')[0] == pair.b.ParameterType.FullName.Split('`')[0]);
 				}).SingleOrNull();
 			}
 		}
