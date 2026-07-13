@@ -232,15 +232,25 @@ namespace OpusMutatum {
 			Console.WriteLine("Finding keys...");
 			// get all the keys this way
 			var refs = new List<Instruction>();
-			foreach(var type in CollectNestedTypes(LightningAssembly.MainModule.Types))
-				if(type != null)
-				foreach(var method in type.Methods)
-					if(method != null)
-					if(method.HasBody && method.Body != null && method.Body.Instructions != null)
-						foreach(var instr in method.Body.Instructions)
-							if(instr != null && instr.OpCode != null)
+			IMetadataScope mscorlibScope = null;
+			foreach(var type in CollectNestedTypes(LightningAssembly.MainModule.Types)) {
+				if(type == null) continue;
+				foreach (var method in type.Methods) {
+					if(method != null && method.HasBody && method.Body != null && method.Body.Instructions != null) {
+						foreach (var instr in method.Body.Instructions) {
+							if(instr == null || instr.OpCode == null) continue;
+
 							if(instr.OpCode.Code == Code.Call && instr.Operand is MethodReference operand && operand.Resolve() != null && operand.Resolve().Equals(parse))
 								refs.Add(instr);
+							// Find the mscorlib scope while we're here - maybe there's an easier way, but we're already searching through all the instructions regardless so it's fine
+							if (mscorlibScope == null && instr.Operand is MethodReference methodRef
+									&& methodRef.DeclaringType.Scope.Name == "mscorlib" && methodRef.DeclaringType.Scope.MetadataScopeType == MetadataScopeType.AssemblyNameReference) {
+								mscorlibScope = methodRef.DeclaringType.Scope;
+							}
+						}
+					}
+				}
+			}
 
 			var keys = new HashSet<int>();
 
@@ -250,37 +260,49 @@ namespace OpusMutatum {
 			Console.WriteLine($"Found {keys.Count()} string keys");
 
 			var proc = mainMethod.Body.GetILProcessor();
-			var first = proc.Body.Instructions.First();
 
-			var stringt = module.TypeSystem.String;
+			var stringType = module.TypeSystem.String;
+			var voidType = module.TypeSystem.Void;
 
-			// we want String.Concat(String?, String?, String?)
-			Console.WriteLine("Resolving Concat method...");
-			var concat = module.ImportReference(stringt.Resolve().Methods.First(f => f.Parameters.Count == 3 && f.Parameters.All(p => p.ParameterType.FullName.Equals(stringt.FullName))));
-			Console.WriteLine("Getting StreamWriter class...");
-			var streamWriter = module.ImportReference(typeof(StreamWriter)).Resolve();
-			Console.WriteLine("Getting StreamWriter constructor...");
-			var streamWriterConstructor = module.ImportReference(streamWriter.Methods.First(m => m.Name.Equals(".ctor") && m.Parameters.Count() == 1 && m.Parameters.All(param => param.ParameterType.FullName.Equals(stringt.FullName))));
-			Console.WriteLine("Getting WriteLine method...");
-			var writeLine = module.ImportReference(streamWriter.BaseType.Resolve().Methods.First(m => m.Name.Equals("WriteLine") && m.Parameters.Count == 1 && m.Parameters.All(p => p.ParameterType.FullName.Equals(stringt.FullName))));
-			Console.WriteLine("Getting Dispose method...");
-			var dispose = module.ImportReference(streamWriter.BaseType.Resolve().FindMethod("Close"));
+			// Manual construction of a bunch of type and method references because Cecil is jank
+			var concat = new MethodReference("Concat", stringType, stringType);
+			for (int i = 0; i < 3; i++) concat.Parameters.Add(new ParameterDefinition(stringType));
+
+			var streamWriterType = new TypeReference("System.IO", "StreamWriter", module, mscorlibScope);
+			var textWriterType = new TypeReference("System.IO", "TextWriter", module, mscorlibScope);
+
+			var streamWriterConstructor = new MethodReference(".ctor", voidType, streamWriterType) {
+				HasThis = true
+			};
+			streamWriterConstructor.Parameters.Add(new ParameterDefinition(stringType));
+			streamWriterConstructor = module.ImportReference(streamWriterConstructor);
+
+			var writeLine = new MethodReference("WriteLine", voidType, textWriterType) {
+				HasThis = true
+			};
+			writeLine.Parameters.Add(new ParameterDefinition(stringType));
+			writeLine = module.ImportReference(writeLine);
+
+			var dispose = new MethodReference("Close", voidType, textWriterType) {
+				HasThis = true
+			};
+			dispose = module.ImportReference(dispose);
 
 			Console.WriteLine("Creating string dumper...");
-			proc.InsertBefore(first, proc.Create(OpCodes.Ldstr, "./out.csv"));
-			proc.InsertBefore(first, proc.Create(OpCodes.Newobj, streamWriterConstructor));
+			proc.Clear();
+			proc.Append(proc.Create(OpCodes.Ldstr, "./out.csv"));
+			proc.Append(proc.Create(OpCodes.Newobj, streamWriterConstructor));
 			foreach(var key in keys) {
-				proc.InsertBefore(first, proc.Create(OpCodes.Dup));
-				proc.InsertBefore(first, proc.Create(OpCodes.Ldstr, key.ToString()));
-				proc.InsertBefore(first, proc.Create(OpCodes.Ldstr, "~,~"));
-				proc.InsertBefore(first, proc.Create(OpCodes.Ldc_I4, key));
-				proc.InsertBefore(first, proc.Create(OpCodes.Call, parse));
-				proc.InsertBefore(first, proc.Create(OpCodes.Call, concat));
-				proc.InsertBefore(first, proc.Create(OpCodes.Callvirt, writeLine));
+				proc.Append(proc.Create(OpCodes.Dup));
+				proc.Append(proc.Create(OpCodes.Ldstr, key.ToString()));
+				proc.Append(proc.Create(OpCodes.Ldstr, "~,~"));
+				proc.Append(proc.Create(OpCodes.Ldc_I4, key));
+				proc.Append(proc.Create(OpCodes.Call, parse));
+				proc.Append(proc.Create(OpCodes.Call, concat));
+				proc.Append(proc.Create(OpCodes.Callvirt, writeLine));
 			}
-			//proc.InsertBefore(first, proc.Create(OpCodes.Ldc_I4_1));
-			proc.InsertBefore(first, proc.Create(OpCodes.Callvirt, dispose));
-			proc.InsertBefore(first, proc.Create(OpCodes.Ret));
+			proc.Append(proc.Create(OpCodes.Callvirt, dispose));
+			proc.Append(proc.Create(OpCodes.Ret));
 
 			Directory.CreateDirectory("./StringDumping");
 			module.Write("./StringDumping/Lightning.exe");
@@ -292,7 +314,10 @@ namespace OpusMutatum {
 			}
 			Console.WriteLine("Running string dumper...");
 			// run the string dumper automatically
-			RunAndWait(Path.Combine(Directory.GetCurrentDirectory(), "StringDumping", "Lightning.exe"), "");
+			var executablePath = Path.Combine(Directory.GetCurrentDirectory(), "StringDumping", "Lightning.exe");
+			// Need to set the executable flag on unix
+			File.SetUnixFileMode(executablePath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+			RunAndWait(executablePath, "");
 			Console.WriteLine();
 		}
 
