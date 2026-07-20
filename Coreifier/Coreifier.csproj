@@ -9,4 +9,8 @@
     <PackageReference Include="MonoMod.Utils" Version="25.0.14"/>
   </ItemGroup>
 
+  <PropertyGroup>
+    <OutputPath>..\bin\$(Configuration)</OutputPath>
+  </PropertyGroup>
+
 </Project>

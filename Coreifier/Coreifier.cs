@@ -76,6 +76,7 @@ public static class Coreifier {
                     Module = module,
                     MissingDependencyThrow = false,
                     PreventInlining = preventInlining,
+                    LogVerboseEnabled = false
                 }) {
             modder.MapDependencies();
             modder.AutoPatch();
