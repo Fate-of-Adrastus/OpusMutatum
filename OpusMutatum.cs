@@ -20,7 +20,6 @@ using TypeReference = Mono.Cecil.TypeReference;
 namespace OpusMutatum {
 
 	public static class OpusMutatum {
-        // TODO: make everything work using these (required for modded to use separate (ie. coreified) deps)
         static string PathToOutput = "modded";
         static string PathToTemporaryOutput = "modded/temp";
 
@@ -585,12 +584,11 @@ namespace OpusMutatum {
 						Console.WriteLine("Generating hooks...");
 						RunAndWait(Path.Combine(Directory.GetCurrentDirectory(), PathToHookGen), moddedOutputPath);
 						if(OpSystem != OS.Windows) {
-                            string moddedBasePath = Path.GetFileNameWithoutExtension(PathToModdedLightning);
 							// Fixes the SDL2.dll not found error
-							File.Copy("./Lightning.exe.config", Path.Combine(PathToOutput, moddedBasePath + ".exe.config"), true);
+							File.Copy("./Lightning.exe.config", Path.Combine(PathToOutput, Path.ChangeExtension(PathToModdedLightning, ".exe.config")), true);
 							// These are the files you run to make the thing do the thing. yes
-							File.Copy("./Lightning.bin.x86", Path.Combine(PathToOutput, moddedBasePath + ".bin.x86"), true);
-							File.Copy("./Lightning.bin.x86_64", Path.Combine(PathToOutput, moddedBasePath + ".bin.x86_64"), true);
+							File.Copy("./Lightning.bin.x86", Path.Combine(PathToOutput, Path.ChangeExtension(PathToModdedLightning, ".bin.x86")), true);
+							File.Copy("./Lightning.bin.x86_64", Path.Combine(PathToOutput, Path.ChangeExtension(PathToModdedLightning, ".bin.x86_64")), true);
 						}
 					}
 				} else {
@@ -628,8 +626,6 @@ namespace OpusMutatum {
                 Console.WriteLine($"Unable to load assembly {asmFrom}, skipping coreification!");
                 return;
             }
-
-            Console.WriteLine($"Converting {asmFrom} to .NET Core...");
             if (!convertedAsms.Add(asmFrom))
                 return;
 
@@ -684,7 +680,7 @@ namespace OpusMutatum {
         }
 
         static void CoreifySingle(string asmFrom, string asmTo) {
-            Console.WriteLine($"Converting {asmFrom} to .NET Core");
+            Console.WriteLine($"Converting {asmFrom} to .NET Core...");
 
             string asmTmp = Path.Combine(PathToTemporaryOutput, Path.GetFileName(asmTo));
             try {
