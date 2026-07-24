@@ -60,8 +60,9 @@ namespace OpusMutatum {
 		static Dictionary<int, string> Strings = new Dictionary<int, string>();
 
 		static bool AutoExit = false;
-		// OS enum, since Linux and Mac are different
-		public enum OS {
+        private static bool NamedOut = false;
+        // OS enum, since Linux and Mac are different
+        public enum OS {
 			Windows,
 			Linux,
 			Mac
@@ -132,6 +133,8 @@ namespace OpusMutatum {
 							OpSystem = OS.Windows;
                         else if (arg.Equals("--autoExit"))
                             AutoExit = true;
+                        else if (arg.Equals("--namedExe"))
+                            NamedOut = true;
                         break;
 					case ArgumentParsingMode.IntermediaryToNamedMappingPath:
 						IntermediaryToNamedMappingPaths.Add(arg);
@@ -204,7 +207,10 @@ namespace OpusMutatum {
                         HandleCoreify();
 						HandleStrings();
 						HandleIntermediary();
-						HandleMerge();
+                        if (NamedOut) {
+                            HandleQuintDevExe();
+                        }
+                        HandleMerge();
 						break;
 					case RunAction.QuintDevExe:
                         HandleQuintDevExe();
@@ -282,7 +288,7 @@ namespace OpusMutatum {
 				foreach (var method in type.Methods) {
 					if(method != null && method.HasBody && method.Body != null && method.Body.Instructions != null) {
 						foreach (var instr in method.Body.Instructions) {
-							if(instr == null || instr.OpCode == null) continue;
+							if(instr == null) continue;
 
 							if(instr.OpCode.Code == Code.Call && instr.Operand is MethodReference operand && operand.Resolve() != null && operand.Resolve().Equals(parse))
 								refs.Add(instr);
@@ -359,9 +365,10 @@ namespace OpusMutatum {
 				File.Copy("./Steamworks.NET.dll", Path.Combine(stringDumpingDir, "Steamworks.NET.dll"));
 			}
 			Console.WriteLine("Running string dumper...");
-			// run the string dumper automatically
-			// Need to set the executable flag on unix
-			File.SetUnixFileMode(stringDumperPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            // run the string dumper automatically
+            // Need to set the executable flag on unix
+            if (Environment.OSVersion.Platform == PlatformID.Unix)
+                File.SetUnixFileMode(stringDumperPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 			RunAndWait(stringDumperPath, "");
 			Console.WriteLine();
 		}
@@ -576,7 +583,8 @@ namespace OpusMutatum {
 					// TODO: check if there's already quintessential with this version
 					Console.WriteLine("Modding Lightning...");
                     string moddedOutputPath = Path.Combine(PathToOutput, PathToModdedLightning);
-					RunAndWait(Path.Combine(Directory.GetCurrentDirectory(), PathToMonoMod), $"{Path.Combine(PathToOutput, PathToIntermediaryLightning)} {PathToQuintessential} {moddedOutputPath}");
+					string moodedInputPath =  Path.Combine(PathToOutput, NamedOut ? "QuintDevLightning.exe" : PathToIntermediaryLightning);
+                    RunAndWait(Path.Combine(Directory.GetCurrentDirectory(), PathToMonoMod), $"{moodedInputPath} {PathToQuintessential} {moddedOutputPath}");
 					if(!File.Exists(moddedOutputPath)) {
 						Console.WriteLine("Failed to mod!");
 						return;
@@ -853,12 +861,12 @@ namespace OpusMutatum {
 			}
 
 			private MethodMapping FindMethod(MethodReference method) {
-				// TODO: generic params stripped when matching method signatures due to Cecil handling generic instance method references strangely
-				// probably not ideal, but maybe it's fine?
-				return FindType(method.DeclaringType)?.Methods.Where(m => {
+                // TODO: generic params stripped when matching method signatures due to Cecil handling generic instance method references strangely
+                // probably not ideal, but maybe it's fine?
+                return FindType(method.DeclaringType)?.Methods.Where(m => {
 					return m.MethodNameA == method.Name
 							&& m.ReturnTypeFullNameA.Split('`')[0] == method.ReturnType.FullName.Split('`')[0]
-							&& m.ArgumentTypeFullNamesA.Count == method.Parameters.Count
+                            && m.ArgumentTypeFullNamesA.Count == method.Parameters.Count
 							&& m.ArgumentTypeFullNamesA.Zip(method.Parameters, (a,b)=>(a,b)).All(pair => pair.a.Split('`')[0] == pair.b.ParameterType.FullName.Split('`')[0]);
 				}).SingleOrNull();
 			}
