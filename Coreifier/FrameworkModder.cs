@@ -22,7 +22,7 @@ public class FrameworkModder : MonoModder {
     private ModuleDefinition coreifierModule;
 
     public override void Dispose() {
-        // don't dispose the main module
+        // don't dispose the main module but dispose the coreifier
         Module = null!;
         coreifierModule?.Dispose();
 
@@ -31,8 +31,7 @@ public class FrameworkModder : MonoModder {
 
     public override void Log(string text)
         => Console.WriteLine($"[{LogID}] {text}");
-    public override void LogVerbose(string text)
-        => Console.WriteLine($"[{LogID}] {text}");
+    public override void LogVerbose(string text) { } // so much log spam. disabling it with `LogVerboseEnabled = false` doesn't seem to work
 
     public void AddReferenceIfMissing(AssemblyName asmName) {
         if (Module.AssemblyReferences.All(asmRef => asmRef.Name != asmName.Name))
@@ -104,8 +103,8 @@ public class FrameworkModder : MonoModder {
                     typeInst.GenericArguments.AddRange(method.DeclaringType.GenericParameters);
                     instr.Operand = typeInst;
                 } else if (instr.Operand is MemberReference memberRef and not TypeReference
-                           && memberRef.DeclaringType.SafeResolve() == method.DeclaringType
-                           && !memberRef.DeclaringType.IsGenericInstance) {
+                        && memberRef.DeclaringType.SafeResolve() == method.DeclaringType
+                        && !memberRef.DeclaringType.IsGenericInstance) {
                     GenericInstanceType typeInst = new(memberRef.DeclaringType);
                     typeInst.GenericArguments.AddRange(method.DeclaringType.GenericParameters);
                     memberRef.DeclaringType = typeInst;
@@ -114,7 +113,7 @@ public class FrameworkModder : MonoModder {
         }
     }
 
-    // Use the mono criteria for this, as those are known (see mono_method_check_inlining)
+    // use the mono criteria for this, as those are known (see mono_method_check_inlining)
     private static bool CanInlineLegacyCode(MethodBody body) {
         // methods exceeding a certain size aren't inlined
         return body.CodeSize < InlineLengthLimit;
