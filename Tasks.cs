@@ -280,6 +280,7 @@ public static class Tasks {
     public static void HandleCopy(string[] args) {
         string pathFrom = "";
         string pathTo = "";
+        bool strict = false;
         bool asFrom = false, asTo = false, asToMod = false;
         foreach (var item in args) {
             if (asFrom) {
@@ -301,6 +302,9 @@ public static class Tasks {
                         break;
                     case "-toMod":
                         asToMod = true;
+                        break;
+                    case "--strict":
+                        strict = true;
                         break;
                     default:
                         Console.WriteLine($"Invalid Argument '{item}' for 'copy' task.");
@@ -333,6 +337,13 @@ public static class Tasks {
         } else if (File.Exists(pathFrom)) {
             Console.WriteLine($"Copying file: {pathFrom}");
             File.Copy(pathFrom, Path.Combine(pathTo, Path.GetFileName(pathFrom)), overwrite: true);
+            if (!strict && Path.GetExtension(pathFrom) == ".dll") {
+                pathFrom = Path.ChangeExtension(pathFrom, ".xml");
+                if (File.Exists(pathFrom)) {
+                    Console.WriteLine($"Copying file: {pathFrom}");
+                    File.Copy(pathFrom, Path.Combine(pathTo, Path.GetFileName(pathFrom)), overwrite: true);
+                }
+            }
         } else {
             Console.WriteLine($"Found nothing at '{pathFrom}' can't copy.");
         }
@@ -402,11 +413,10 @@ public static class Tasks {
         }
 
         var task = System.Threading.Tasks.Task.Run(async () => {
-            bool success = false;
             string path = Path.Combine(outputPath, name);
             string modPath = Path.Combine(Globals.Tasks.ModsDir, name);
             if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-            Console.WriteLine("Exporting Mod: " + name);
+            Console.WriteLine("[Exporter] Started exporting mod: " + name);
             Directory.CreateDirectory(path);
             try {
 
@@ -438,6 +448,7 @@ public static class Tasks {
                         Globals.TryLoadAssemblyDef(sourceDllPath, out var assembly, false);
                         Remapping.RemapNamedToIntermediary(assembly, false);
                         //Remapping.RemapToNamed(assembly, false);
+                        if (File.Exists(destinationDllPath)) File.Delete(destinationDllPath);
                         assembly.Write(destinationDllPath);
 
                         // Handle xml
@@ -455,13 +466,13 @@ public static class Tasks {
                 string zipPath = Path.Combine(outputPath, name + "_" + mod.Version.ToString() + ".zip");
                 if (File.Exists(zipPath)) File.Delete(zipPath);
                 ZipFile.CreateFromDirectory(path, zipPath);
-                success = true;
+                Console.WriteLine("[Exporter] Finished mod: " + name);
             } catch (Exception e) {
-                Console.WriteLine("Failed to export Mod: " + name + "\n" + e);
+                Console.WriteLine("[Exporter] Failed to export Mod: " + name + "\n" + e);
             } finally {
                 Directory.Delete(path, true);
             }
-            if (success) Console.WriteLine("Exported Mod: " + name);
         });
+        Globals.ConcurrentTasks.Add(task);
     }
 }

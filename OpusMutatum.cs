@@ -29,6 +29,7 @@ public static class OpusMutatum {
             foreach (var task in Globals.Tasks.Tasks) {
                 RunTask(task);
             }
+            System.Threading.Tasks.Task.WaitAll(Globals.ConcurrentTasks);
             Console.WriteLine("Done.");
             if (!autoExit) Console.ReadKey(); // keep taskText line open
 
@@ -52,6 +53,7 @@ public static class OpusMutatum {
                 Console.WriteLine(e.ToString());
             Console.ReadKey();
         }
+        System.Threading.Tasks.Task.WaitAll(Globals.ConcurrentTasks);
     }
 
     private static void HandleArguments(string[] args) {

@@ -605,8 +605,7 @@ public static partial class Remapping {
     public static void RemapNamedToIntermediary(AssemblyDefinition namedAssemblyDef, bool logConsoleNormal = true) {
 
         Globals.TryLoadLightning(out var origAssembly, false);
-        if (!TryLoadNamedToIntermediaryMappings(origAssembly, out Backmapper backmapper, logConsoleNormal))
-            return;
+        TryLoadNamedToIntermediaryMappings(origAssembly, out Backmapper backmapper, logConsoleNormal);
 
         var allTypes = StringDumping.CollectNestedTypes(namedAssemblyDef.MainModule.Types);
 
