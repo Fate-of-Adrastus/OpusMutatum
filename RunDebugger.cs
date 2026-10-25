@@ -4,7 +4,8 @@ using System.IO;
 using System.Threading;
 
 namespace OpusMutatum;
-public class RunDebugger {
+
+internal class RunDebugger {
     private const int logReadRetries = 4;
 
     public string[] runArgs = [];

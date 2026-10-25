@@ -2,7 +2,7 @@ using System.IO;
 
 namespace OpusMutatum;
 
-public static class ContentHandling {
+internal static class ContentHandling {
     private static string PathToContent = "Content";
     private static string PathToPackedContent = "PackedContent";
 

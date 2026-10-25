@@ -9,7 +9,7 @@ using CustomAttributeNamedArgument = Mono.Cecil.CustomAttributeNamedArgument;
 
 namespace Coreifier;
 
-public static class Coreifier {
+internal static class Coreifier {
     internal static void Coreify(string inputAsm, string outputAsm = null) {
         ModuleDefinition module = null;
         try {

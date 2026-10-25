@@ -4,7 +4,7 @@ using System.IO;
 
 namespace OpusMutatum;
 
-public static class TaskParser {
+internal static class TaskParser {
 
     static readonly string tasksFileName = "tasks.txt";
     static readonly string exampleFileData = "Tasks:\r\n* strings --onlyOnChange\r\n* intermediary --onlyOnChange\r\n* merge --onlyOnChange --asNamed\r\n* run --readLogs\r\n\r\nAutoExit:\r\n  true";
@@ -139,13 +139,13 @@ public static class TaskParser {
     }
 }
 
-public enum AutoExitMode {
+internal enum AutoExitMode {
     Always,
     OnSuccess,
     Never
 };
 
-public class MutatumTasks {
+internal class MutatumTasks {
     public List<Task> Tasks = [];
 
     public string GameDir = "./modded";
@@ -157,7 +157,7 @@ public class MutatumTasks {
     public List<string> DevModIds = [];
 }
 
-public class Task {
+internal class Task {
     public Command Command;
     public string[] Args;
 
@@ -200,7 +200,7 @@ public class Task {
     };
 }
 
-public enum Command {
+internal enum Command {
     Strings,
     Intermediary,
     MergeDev,

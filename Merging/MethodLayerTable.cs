@@ -5,7 +5,7 @@ using System.Collections.Generic;
 
 namespace OpusMutatum.Merging;
 
-public class MethodLayerTable {
+internal class MethodLayerTable {
     readonly Dictionary<Tuple<string, string>, int> LayerTable = [];
 
     public string PushMethodLayer(TypeDefinition targetType, MethodDefinition method) {

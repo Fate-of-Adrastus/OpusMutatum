@@ -9,7 +9,7 @@ using Mono.Cecil;
 
 namespace OpusMutatum;
 
-public static class Globals {
+internal static class Globals {
     // OS enum, since Linux and Mac are different
     public enum OS {
         Windows,

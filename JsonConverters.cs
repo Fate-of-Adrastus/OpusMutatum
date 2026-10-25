@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace OpusMutatum;
 
-public class VersionJsonConverter : JsonConverter<Version> {
+internal class VersionJsonConverter : JsonConverter<Version> {
     public override Version Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
         return Version.Parse(reader.GetString());
     }
@@ -15,7 +15,7 @@ public class VersionJsonConverter : JsonConverter<Version> {
 }
 
 
-public class VersionRangeJsonConverter : JsonConverter<VersionRange> {
+internal class VersionRangeJsonConverter : JsonConverter<VersionRange> {
     public override VersionRange Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
         VersionRange toReturn = new();
 
@@ -61,7 +61,7 @@ public class VersionRangeJsonConverter : JsonConverter<VersionRange> {
     }
 }
 
-public class EnumConverter<T> : JsonConverter<T> where T : Enum {
+internal class EnumConverter<T> : JsonConverter<T> where T : Enum {
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
         var value = reader.GetString();
         for (int i = 1; i < typeToConvert.GetFields().Length; i++) {

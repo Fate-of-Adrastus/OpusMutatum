@@ -6,7 +6,7 @@ using Mono.Collections.Generic;
 
 namespace OpusMutatum;
 
-public static class EnumVariantInjection {
+internal static class EnumVariantInjection {
 	public static void AddEnumVariants(Collection<TypeDefinition> types, Dictionary<string, Dictionary<int, string>> addedEnumVariants) {
 		foreach (var type in types) {
 			if (addedEnumVariants.ContainsKey(type.Name)) {

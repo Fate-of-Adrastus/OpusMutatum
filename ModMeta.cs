@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace OpusMutatum;
 
-public class ModMeta {
+internal class ModMeta {
 
     public string ModId { get; set; } = "";
 
@@ -28,7 +28,7 @@ public class ModMeta {
 
 
 [JsonConverter(typeof(VersionRangeJsonConverter))]
-public class VersionRange {
+internal class VersionRange {
     public bool InclusiveMin;
     public Version VersionMin;
     public bool InclusiveMax;

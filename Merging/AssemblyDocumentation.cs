@@ -5,7 +5,8 @@ using System.Linq;
 using System.Xml.Linq;
 
 namespace OpusMutatum.Merging;
-public static class AssemblyDocumentation {
+
+internal static class AssemblyDocumentation {
     public static string PathToDocumentation = "documentation";
 
     private static bool WasInit = false;

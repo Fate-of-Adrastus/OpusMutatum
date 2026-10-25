@@ -9,7 +9,7 @@ namespace OpusMutatum;
 
 #pragma warning disable CS8632
 
-public static class OperationWrapperExtensions {
+internal static class OperationWrapperExtensions {
 
     /// <summary>
     /// Get a reference ID that is similar to the full name, but consistent between System.Reflection and Mono.Cecil.

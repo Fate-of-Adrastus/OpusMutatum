@@ -11,7 +11,7 @@ using System.Runtime.Versioning;
 
 namespace OpusMutatum.Merging;
 
-public class MergeModder : MonoModder {
+internal class MergeModder : MonoModder {
     private const string LogID = "Merger";
 
     public List<string> ModIds = [];

@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace OpusMutatum;
 
-public static class DataSerializer {
+internal static class DataSerializer {
     private static bool MultilineFormat;
 
     private static readonly JsonSerializerOptions compactOptions = new() {

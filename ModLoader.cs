@@ -8,7 +8,7 @@ using System.Text;
 namespace OpusMutatum;
 
 
-static public class ModLoader {
+internal static class ModLoader {
     internal const string modMetaFileName = "modMeta.jsonc";
     private const string validModIdChars = "abcdefghijklmnopqrstuvwxyz_0123456789";
 

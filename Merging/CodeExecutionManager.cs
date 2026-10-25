@@ -11,7 +11,8 @@ using System.Runtime.CompilerServices;
 using static System.Reflection.BindingFlags;
 
 namespace OpusMutatum.Merging;
-public class CodeExecutionManager {
+
+internal class CodeExecutionManager {
     private readonly MergeModder MergeModder;
     private readonly Dictionary<string, Dictionary<string, Dictionary<string, System.Reflection.MethodInfo>>> CompiledMethods = [];
     TypeDefinition RuntimeCompiledTypeDef;

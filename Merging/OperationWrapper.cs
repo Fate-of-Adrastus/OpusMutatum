@@ -11,7 +11,7 @@ namespace OpusMutatum.Merging;
 
 
 // TODO: add better error state throws ( for example when stringLiteral is null ).
-public class OperationWrapper(ModificationStash stash) {
+internal class OperationWrapper(ModificationStash stash) {
     readonly Dictionary<Tuple<string, string, string>, List<MethodReference>> WrapTable = [];
 
 

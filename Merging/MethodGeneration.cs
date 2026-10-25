@@ -8,7 +8,8 @@ using System.Data;
 using System.Linq;
 
 namespace OpusMutatum.Merging;
-public static class MethodGeneration {
+
+internal static class MethodGeneration {
     static readonly string GeneratedClassName = "<>mut";
 
     #region generation

@@ -8,7 +8,7 @@ using Mono.Collections.Generic;
 
 namespace OpusMutatum;
 
-public static class StringDumping {
+internal static class StringDumping {
     public static readonly string PathToStringDumping = "StringDumping";
     public static readonly string PathToStrings = "strings";
 

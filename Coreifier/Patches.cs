@@ -9,7 +9,7 @@ using System.Security.Permissions;
 
 namespace Coreifier;
 
-public static class Patches {
+internal static class Patches {
     // don't know what these are even for. maybe monomod uses them ???
     // they were the only non-mod-specific ones in everest so i suppose they're important
 

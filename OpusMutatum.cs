@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace OpusMutatum;
 
-public static class OpusMutatum {
+internal static class OpusMutatum {
     #region Program
 
     private static AutoExitMode autoExit = AutoExitMode.Never;

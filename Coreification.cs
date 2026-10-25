@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace OpusMutatum;
 
-public static class Coreification {
+internal static class Coreification {
 
     public static void Coreify(string asmFrom, string asmTo = null, HashSet<string> convertedAsms = null) {
         asmTo ??= asmFrom;

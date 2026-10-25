@@ -10,7 +10,7 @@ using System.Xml;
 
 namespace OpusMutatum;
 
-public static partial class DependencyHandling {
+internal static partial class DependencyHandling {
     private static readonly string[] QuintessentialSystemLibs = []; // TODO: what goes in here? do we even need this?
     private static readonly string[] MonoSystemLibs = ["mscorlib.dll", "Mono.Posix.dll", "Mono.Security.dll"];
 

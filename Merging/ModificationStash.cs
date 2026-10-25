@@ -7,7 +7,7 @@ using static OpusMutatum.Merging.OperationWrapper;
 
 namespace OpusMutatum.Merging;
 
-public class ModificationStash(MethodLayerTable layerTable, CodeExecutionManager executionManager) {
+internal class ModificationStash(MethodLayerTable layerTable, CodeExecutionManager executionManager) {
     private record ILInjector(CustomAttribute atrib, TypeDefinition targetType, string methodName, string patchTypeName, string modId);
     readonly List<ILInjector> ILInjectors = [];
     private record WrapOperation(TypeDefinition targetType, MethodDefinition method, string targetMethodName, WrapOperationNameData nameData, string callMetadata, int layer);

@@ -10,7 +10,7 @@ using System.Reflection;
 
 namespace Coreifier;
 
-public class FrameworkModder : MonoModder {
+internal class FrameworkModder : MonoModder {
     private const string LogID = nameof(Coreifier);
 
     private static readonly HashSet<string> PrivateSystemLibs = ["System.Private.CoreLib"];

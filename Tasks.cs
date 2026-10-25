@@ -6,7 +6,8 @@ using System.IO.Compression;
 using System.Xml.Linq;
 
 namespace OpusMutatum;
-public static class Tasks {
+
+internal static class Tasks {
     public static void HandleStrings(string[] args) {
         bool onlyOnChange = false;
         foreach (var item in args) {

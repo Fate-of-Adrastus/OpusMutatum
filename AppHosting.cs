@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace OpusMutatum;
 
-public static partial class AppHosting {
+internal static partial class AppHosting {
     [GeneratedRegex(@"\d+\.\d+")]
     private static partial Regex FrameworkVersionRegex();
 

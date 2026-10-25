@@ -14,7 +14,7 @@ using System.Xml.Linq;
 
 namespace OpusMutatum;
 
-public static partial class Remapping {
+internal static partial class Remapping {
     #region Data Structures
 
 	private class Mappings {
