@@ -159,7 +159,7 @@ internal static class Tasks {
             return;
         }
 
-        Patching.RunMerge(asmFrom, moddedLightningPath, dllPaths: dllPaths, true, false, mergeXML);
+        MergePatching.RunMerge(asmFrom, moddedLightningPath, dllPaths: dllPaths, true, false, mergeXML);
 
         Console.WriteLine();
     }
@@ -215,7 +215,7 @@ internal static class Tasks {
             return;
         }
 
-        Patching.RunMerge(asmFrom, devLightningPath, dllPaths: dllPaths, true, true, mergeXML);
+        MergePatching.RunMerge(asmFrom, devLightningPath, dllPaths: dllPaths, true, true, mergeXML);
         Console.WriteLine();
     }
 

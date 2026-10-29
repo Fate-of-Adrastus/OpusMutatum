@@ -117,7 +117,7 @@ internal static class OpusMutatum {
                     break;
 
                 case ArgumentParsingMode.QuintessentialPath:
-                    Patching.PathToQuintessential = arg;
+                    MergePatching.PathToQuintessential = arg;
                     current = ArgumentParsingMode.Argument;
                     break;
 

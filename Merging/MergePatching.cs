@@ -5,7 +5,7 @@ using System.IO;
 
 namespace OpusMutatum.Merging;
 
-internal static class Patching {
+internal static class MergePatching {
     public static string PathToQuintessential = "Quintessential.dll";
     public static string PathToPatchingDependencies = "";
 
