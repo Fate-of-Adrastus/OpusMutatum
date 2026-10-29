@@ -249,9 +249,6 @@ public static class Tasks {
                     case "--attachDebugger":
                         gameDebugger.attachDebugger = true;
                         break;
-                    case "--readLogs":
-                        gameDebugger.readLogs = true;
-                        break;
                     default:
                         Console.WriteLine($"Invalid Argument '{item}' for 'run' task.");
                         break;
