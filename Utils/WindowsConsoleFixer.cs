@@ -53,12 +53,15 @@ internal class WindowsConsoleFixer {
     public static void MakeMyWindowsConsoleBehave() {
         // Just enable ansi colour codes.
         // Stupid cmd terminals can't handle that wihout this black magic.
+        EnableAnsiForConsole(STD_OUTPUT_HANDLE);
+        EnableAnsiForConsole(STD_ERROR_HANDLE);
+    }
 
-        IntPtr hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    private static void EnableAnsiForConsole(int consoleHandle) {
+        IntPtr hOut = GetStdHandle(consoleHandle);
         if (hOut != INVALID_HANDLE_VALUE) {
-            uint mode;
-            if (GetConsoleMode(hOut, out mode)) {
-                mode |= (uint)ConsoleOutputModes.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            if (GetConsoleMode(hOut, out uint mode)) {
+                mode |= (uint) ConsoleOutputModes.ENABLE_VIRTUAL_TERMINAL_PROCESSING;
                 SetConsoleMode(hOut, mode);
             }
         }
